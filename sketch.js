@@ -2,7 +2,7 @@
 // VERSIONE FINALE - TOTAL TEXTURE LOOK + EFFETTO ACQUERELLO PIÙ SATURO
 // - Navbar & Sfondo: 'immagini/cartagiusta.jpg' (gestito esternamente o in draw).
 // - Popup & Legenda: 'immagini/carta2.jpg' come sfondo con bordi arrotondati.
-// - Grafico: Segmenti disegnati con effetto acquerello ora più saturo.
+// - Grafico: Spicchi Resi Cliccabili (Simulazione Navigazione).
 // - INTERAZIONE AGGIORNATA: Tutti i popup con layout alternato (1/3 immagine, 2/3 testo).
 
 let table;
@@ -67,6 +67,7 @@ let wheelCenterX;
 
 // STATO INTERAZIONE
 let hoveredAreaIndex = -1; 
+let clickedAreaIndex = -1; // NUOVO STATO: Indice dell'area cliccata
 let isPopupOpen = false;
 let infoIconBounds = []; 
 let currentPopupContent = null;
@@ -121,7 +122,7 @@ function setup() {
   angleMode(RADIANS);
   textFont("cormorant-garamond");
 
-  // Applica sfondo alla navbar se presente (usa ancora 'carta2.jpg' ma il percorso deve essere aggiornato)
+  // Applica sfondo alla navbar se presente 
   let navbar = select('.navbar');
   if (navbar) {
     navbar.style('background-image', 'url("immagini/carta2.jpg")');
@@ -179,6 +180,7 @@ function computeLayout() {
 
 function updateHoverState() {
   hoveredAreaIndex = -1;
+  // Non permettiamo hover se il popup è aperto
   if (wheelProgress < 0.99 || isPopupOpen || animProgress > 0) return;
 
   const relX = mouseX - wheelCenterX;
@@ -207,9 +209,14 @@ function updateHoverState() {
       const areaMaxR = map(areas[i].total, 0, maxTotal, INNER_FIXED_RADIUS + 20, outerRadius);
       if (distMouse <= areaMaxR + 5) {
         hoveredAreaIndex = i;
+        // Cambia il cursore per indicare la cliccabilità
+        cursor(HAND); 
         return;
       }
     }
+  }
+  if (hoveredAreaIndex === -1) {
+      cursor(ARROW);
   }
 }
 
@@ -241,8 +248,9 @@ function draw() {
 
   if (wheelProgress > 0.8) drawReferenceCircles();
   pop(); 
-
-  if (hoveredAreaIndex !== -1 && !isPopupOpen && animProgress <= 0) {
+  
+  // Il tooltip appare solo su hover, non su click
+  if (hoveredAreaIndex !== -1 && clickedAreaIndex === -1 && !isPopupOpen && animProgress <= 0) {
     drawTooltip(hoveredAreaIndex);
   }
 
@@ -275,11 +283,13 @@ function drawAnimatedWedge(i) {
 
   if (sumVals <= 0.0001) return;
 
+  let rInner = minRadius; 
+  const isDimmed = (hoveredAreaIndex !== -1 && hoveredAreaIndex !== i) || (clickedAreaIndex !== -1 && clickedAreaIndex !== i);
+  // Aggiungi un highlight se l'area è cliccata
+  const isClicked = (clickedAreaIndex === i);
+  
   const minThicknessNeeded = relevant.length * MIN_SEGMENT_THICKNESS;
   const availRange = max(0, currentRange - minThicknessNeeded); 
-
-  let rInner = minRadius; 
-  const isDimmed = (hoveredAreaIndex !== -1 && hoveredAreaIndex !== i);
 
   for (const { k, v } of segments) {
     if (v <= 0) continue;
@@ -295,7 +305,11 @@ function drawAnimatedWedge(i) {
     baseColor.setAlpha(230); 
     
     let c = baseColor;
-    if (isDimmed) c = lerpColor(c, color(225, 225, 220, 230), 0.7); 
+    let dimming = 0;
+    if (isDimmed) dimming = 0.7; 
+    if (isClicked) c = color(hue(c), saturation(c), brightness(c) + 20); // Rende più chiaro
+    
+    c = lerpColor(c, color(225, 225, 220, 230), dimming);
     // --- FINE MODIFICA ---
 
     drawRingSegment(start, currentEnd, rInner, rOuter, c);
@@ -303,7 +317,6 @@ function drawAnimatedWedge(i) {
   }
 }
 
-// --- FUNZIONE drawRingSegment per l'EFFETTO ACQUERELLO PIÙ SATURO ---
 function drawRingSegment(start, end, rIn, rOut, col) {
   if (abs(end - start) < 0.0001) return;
   
@@ -311,36 +324,28 @@ function drawRingSegment(start, end, rIn, rOut, col) {
   
   noStroke();
   
-  // Ciclo per disegnare più strati per l'effetto acquerello (sovrapposizione di pigmento)
   for (let j = 0; j < WATERCOLOR_LAYERS; j++) {
-    // Varia leggermente l'opacità e la dimensione per strato
     let currentAlpha = WATERCOLOR_ALPHA + j * 10;
     layerColor.setAlpha(currentAlpha);
     fill(layerColor);
 
-    // Varia il raggio interno ed esterno con un "bleed" (sfumatura)
     let rInnerLayer = rIn - j * 0.5;
     let rOuterLayer = rOut + j * WATERCOLOR_BLEED; 
 
-    // Numero di passi per definire la curva.
     const steps = 30 + j * 5; 
     const da = (end - start) / steps;
     
-    // Inizializza il vertice per l'effetto rumore Perlin
     noiseOffset += 0.01; 
     
     beginShape();
     
-    // Disegna il bordo esterno (con leggero rumore per irregolarità)
     for (let i = 0; i <= steps; i++) {
       let angle = start + i*da;
-      // Applica un leggero rumore Perlin al raggio per rendere il bordo irregolare
       let noiseR = noise(cos(angle)*0.1 + noiseOffset, sin(angle)*0.1 + noiseOffset) * 2;
       let r = rOuterLayer + noiseR;
       vertex(cos(angle)*r, sin(angle)*r);
     }
     
-    // Disegna il bordo interno (mantenuto più liscio)
     for (let i = steps; i >= 0; i--) {
       let angle = start + i*da;
       vertex(cos(angle)*rInnerLayer, sin(angle)*rInnerLayer);
@@ -348,8 +353,6 @@ function drawRingSegment(start, end, rIn, rOut, col) {
     endShape(CLOSE);
   }
 }
-// --- FINE drawRingSegment ---
-
 
 function drawCurvedLabel(i) {
   const { start, end } = wedgeAngles[i];
@@ -358,9 +361,9 @@ function drawCurvedLabel(i) {
   
   textSize(constrain(width * 0.012, 10, 14));
   
-  if (hoveredAreaIndex === i) {
+  if (hoveredAreaIndex === i || clickedAreaIndex === i) {
       fill(0); textStyle(BOLD);
-  } else if (hoveredAreaIndex !== -1) {
+  } else if (hoveredAreaIndex !== -1 || clickedAreaIndex !== -1) {
       fill(180, 180, 180, 180); textStyle(NORMAL);
   } else {
       fill(textColor); textStyle(NORMAL);
@@ -471,13 +474,24 @@ function drawTooltip(index) {
 function mouseClicked() {
   if (animProgress > 0 && animProgress < 1) return; 
 
-  // Click X Popup
+  // 1. GESTIONE CLICK SUI SEGMENTI DEL GRAFICO
+  if (!isPopupOpen && wheelProgress >= 1.0 && hoveredAreaIndex !== -1) {
+    const areaName = areas[hoveredAreaIndex].area;
+    clickedAreaIndex = hoveredAreaIndex; 
+    
+    // SIMULAZIONE NAVIGAZIONE: logga l'azione e l'area cliccata
+    console.log(`Navigazione simulata: Click sul segmento "${areaName}". Qui andrebbe il reindirizzamento alla pagina di dettaglio.`);
+    
+    // Potresti reindirizzare qui, ad esempio: window.location.href = `dettaglio_${areaName}.html`;
+    return;
+  }
+  
+  // 2. GESTIONE CLICK X POPUP
   if (isPopupOpen) {
     const popX = width / 2;
     const popY = height / 2;
     const margin = 30; 
     
-    // Coordinate bottone nel popup aperto
     const boxLeft = popX - POPUP_WIDTH / 2;
     const boxTop = popY - POPUP_HEIGHT / 2;
     
@@ -491,12 +505,13 @@ function mouseClicked() {
     }
   }
   
-  // Click Icone Legenda
+  // 3. GESTIONE CLICK ICONE LEGENDA
   if (!isPopupOpen && wheelProgress >= 1.0) {
     for (let b of infoIconBounds) {
       if (dist(mouseX, mouseY, b.x, b.y) < 15) {
         currentPopupContent = popupData[b.k];
         isPopupOpen = true;
+        clickedAreaIndex = -1; // Reset dello stato di click sul grafico se apro il popup
         animProgress = 0;
         return;
       }
@@ -798,7 +813,7 @@ function drawPopup() {
         }
 
       } else if (currentPopupContent.description) {
-        // Logica di fallback per i regni con la vecchia singola 'description' (se avessimo saltato la divisione)
+        // Logica di fallback (regni con descrizione singola)
         textAlign(LEFT, TOP);
         text(currentPopupContent.description, 
              boxLeft + textMargin, 

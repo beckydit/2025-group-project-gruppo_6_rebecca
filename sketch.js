@@ -2,7 +2,7 @@
 // VERSIONE FINALE - TOTAL TEXTURE LOOK + EFFETTO ACQUERELLO PIÙ SATURO
 // - Navbar & Sfondo: 'immagini/cartagiusta.jpg' (gestito esternamente o in draw).
 // - Popup & Legenda: 'immagini/carta2.jpg' come sfondo con bordi arrotondati.
-// - Grafico: Spicchi Resi Cliccabili (Simulazione Navigazione).
+// - Grafico: Spicchi Resi Cliccabili con link fisso.
 // - INTERAZIONE AGGIORNATA: Tutti i popup con layout alternato (1/3 immagine, 2/3 testo).
 
 let table;
@@ -67,7 +67,7 @@ let wheelCenterX;
 
 // STATO INTERAZIONE
 let hoveredAreaIndex = -1; 
-let clickedAreaIndex = -1; // NUOVO STATO: Indice dell'area cliccata
+let clickedAreaIndex = -1; 
 let isPopupOpen = false;
 let infoIconBounds = []; 
 let currentPopupContent = null;
@@ -479,10 +479,19 @@ function mouseClicked() {
     const areaName = areas[hoveredAreaIndex].area;
     clickedAreaIndex = hoveredAreaIndex; 
     
-    // SIMULAZIONE NAVIGAZIONE: logga l'azione e l'area cliccata
-    console.log(`Navigazione simulata: Click sul segmento "${areaName}". Qui andrebbe il reindirizzamento alla pagina di dettaglio.`);
+    // === IMPLEMENTAZIONE DEL LINK FISSO RICHIESTO ===
     
-    // Potresti reindirizzare qui, ad esempio: window.location.href = `dettaglio_${areaName}.html`;
+    const url = '../visione_insieme/index.html';
+    const target = '_blank';
+    
+    // Aprire il link nella nuova scheda
+    window.open(url, target);
+    
+    // Non è necessario usare window.location.href qui perché 'window.open'
+    // gestisce l'apertura in una nuova scheda.
+    
+    // === FINE IMPLEMENTAZIONE DEL LINK FISSO ===
+    
     return;
   }
   
@@ -511,7 +520,7 @@ function mouseClicked() {
       if (dist(mouseX, mouseY, b.x, b.y) < 15) {
         currentPopupContent = popupData[b.k];
         isPopupOpen = true;
-        clickedAreaIndex = -1; // Reset dello stato di click sul grafico se apro il popup
+        clickedAreaIndex = -1; 
         animProgress = 0;
         return;
       }
